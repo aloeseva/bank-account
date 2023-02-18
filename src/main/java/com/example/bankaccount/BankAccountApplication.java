@@ -15,6 +15,7 @@ import java.util.List;
 @EnableCaching
 public class BankAccountApplication {
     private static BalanceService balanceService;
+
     @Autowired
     public BankAccountApplication(BalanceService balanceService) {
         BankAccountApplication.balanceService = balanceService;
@@ -25,7 +26,7 @@ public class BankAccountApplication {
         startClientTest();
     }
 
-    private static void startClientTest(){
+    private static void startClientTest() {
         // Параметры настройки клиента
         int threadCount = 4;
         double readQuota = 0.8;
