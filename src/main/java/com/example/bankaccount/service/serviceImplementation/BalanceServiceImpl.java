@@ -3,23 +3,21 @@ package com.example.bankaccount.service.serviceImplementation;
 import com.example.bankaccount.entity.Balance;
 import com.example.bankaccount.repos.BalanceRepo;
 import com.example.bankaccount.service.BalanceService;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
-import org.springframework.ui.Model;
 
-import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
-@Slf4j
 @Service
 public class BalanceServiceImpl implements BalanceService {
     private final BalanceRepo balanceRepo;
+    // Переменные для хранения статистики
+    private final AtomicInteger getBalanceCount = new AtomicInteger(0);
+    private final AtomicInteger changeBalanceCount = new AtomicInteger(0);
+    private final AtomicInteger allChangeBalanceCount = new AtomicInteger(0);
 
     @Autowired
     public BalanceServiceImpl(BalanceRepo balanceRepo) {
@@ -27,81 +25,45 @@ public class BalanceServiceImpl implements BalanceService {
     }
 
     @Override
-    public Optional<Balance> getBalance(Long id) {
-        return balanceRepo.findById(id);
+    @Cacheable(value = "balances", key = "#id")
+    public Optional<Long> getBalance(Long id) {
+        // Инкрементируем счетчик запросов
+        getBalanceCount.incrementAndGet();
+        // Выполняем операцию
+        return balanceRepo.findById(id).map(Balance::getAmount);
     }
 
     @Override
+    @CacheEvict(value = "balances", key = "#id")
     public void changeBalance(Long id, Long amount) {
-        final Optional<Balance> optionalBalance = getBalance(id);
-        optionalBalance.ifPresent(
-                balance -> {
-                    balance.setAmount(balance.getAmount() + amount);
-                    save(balance);
-                });
-    }
-
-    @CacheEvict(value="balances", allEntries=true)
-    public LinkedHashSet<Balance> addBalance(String amount, Model model) {
-        LinkedHashSet<Balance> balances = new LinkedHashSet<>();
-
-        try {
-            Long amountL = Long.parseLong(amount);
-            Balance balance = new Balance(amountL);
-            save(balance);
-            balances.add(balance);
-            log.info("Баланс сохранен по ID: {} и со значением: {}", balance.getId(), balance.getAmount());
-        } catch (NumberFormatException ex) {
-            log.error("При добавлении баланса возникла ошибка: {}", ex.getMessage());
-            model.addAttribute("addError", "При добавлении баланса возникла ошибка");
+        // Инкрементируем счетчик запросов
+        changeBalanceCount.incrementAndGet();
+        // Выполняем операцию
+        synchronized (this) {
+            Optional<Balance> balanceOptional = balanceRepo.findById(id);
+            Balance balance = balanceOptional.orElse(new Balance(id, 0L));
+            balance.setAmount(balance.getAmount() + amount);
+            balanceRepo.save(balance);
         }
-
-        return balances;
     }
 
-    @Cacheable(value = "balance", key = "#id")
-    public LinkedHashSet<Balance> getBalance(String id, Model model) {
-        LinkedHashSet<Balance> balances = new LinkedHashSet<>();
-        try {
-            Long idL = Long.parseLong(id);
-            if (getBalance(idL).isPresent()) {
-                log.info("Получение баланса по ID: {}", idL);
-                balances.add(getBalance(idL).get());
-            } else {
-                log.info("Баланс по ID: {} не найден", idL);
-                model.addAttribute("getError", "При получении баланса возникла ошибка");
-            }
-        } catch (NumberFormatException ex) {
-            log.error("При получении баланса возникла ошибка: {}", ex.getMessage());
-            model.addAttribute("getError", "При получении баланса возникла ошибка");
-        }
-
-        return balances;
+    @Override
+    public AtomicInteger getReadCount() {
+        return this.getBalanceCount;
     }
 
-    @Caching(evict = {@CacheEvict(value="balances", allEntries=true)},
-            put = {@CachePut(value = "balance", key = "#id")})
-    public LinkedHashSet<Balance> changeBalance(String amount, String id, Model model) {
-
-        try {
-            Long amountL = Long.parseLong(amount);
-            Long idL = Long.parseLong(id);
-            log.info("Обновление баланса по ID: {}", idL);
-            changeBalance(idL, amountL);
-        } catch (NumberFormatException ex) {
-            log.error("При изменении баланса возникла ошибка: {}", ex.getMessage());
-            model.addAttribute("changeError", "При изменении баланса возникла ошибка");
-        }
-
-        return getBalance(id, model);
+    @Override
+    public void setReadCount() {
+        this.allChangeBalanceCount.incrementAndGet();
     }
 
-    @Cacheable(value = "balances")
-    public LinkedHashSet<Balance> findAll() {
-        return new LinkedHashSet<>(balanceRepo.findAll());
+    @Override
+    public AtomicInteger getAllReadCount() {
+        return this.allChangeBalanceCount;
     }
 
-    public void save(Balance balance) {
-        balanceRepo.save(balance);
+    @Override
+    public AtomicInteger getWriteCount() {
+        return this.changeBalanceCount;
     }
 }

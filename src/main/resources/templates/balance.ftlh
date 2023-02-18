@@ -5,13 +5,19 @@
     <title>Bank Account</title>
 </head>
 <body>
-<div>
-    <form method="post" action="/balance/get_balance">
-        <input type="text" name="amount" placeholder="Введите баланс счета">
-        <button type="submit">Добавить</button>
-    </form>
-</div>
-<div>Список сообщений</div>
+<table>
+    <tr>
+        <th>writeCount</th>
+        <th>readCount</th>
+        <th>allReadCount</th>
+    </tr>
+    <tr>
+        <th>${writeCount}</th>
+        <th>${readCount}</th>
+        <th>${allReadCount}</th>
+    </tr>
+</table>
+<div>Сообщение</div>
 <form method="get" action="/balance/get_balance">
     <label>
         <#if id??>
@@ -31,12 +37,12 @@
             <th>Значение</th>
             <th>Изменить Значение</th>
         </tr>
-        <#list balances as balance>
+        <#if balance??>
             <tr>
-                <th>${balance.id}</th>
-                <th>${balance.amount}</th>
+                <th>${id}</th>
+                <th>${balance}</th>
                 <th>
-                    <form method="post" action="/balance/get_balance/${balance.id}">
+                    <form method="post" action="/balance/get_balance/${id}">
                         <label>
                             <input type="text" name="amount" value="">
                         </label>
@@ -46,7 +52,7 @@
             </tr>
         <#else>
             No balances
-        </#list>
+        </#if>
     </table>
     <#if changeError??>
         <div style="color: red">${changeError}</div>
