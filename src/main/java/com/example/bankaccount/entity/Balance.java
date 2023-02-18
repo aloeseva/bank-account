@@ -22,7 +22,4 @@ public class Balance implements Serializable {
     @Column(name = "amount")
     private Long amount;
 
-    public Balance(Long amount) {
-        this.amount = amount;
-    }
 }
